@@ -103,7 +103,6 @@ celerybeat.pid
 
 # Environments
 .env
-.venv
 env/
 venv/
 ENV/
@@ -127,3 +126,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Editor
+.idea
+
+# Project Specific
+*.csv
+
