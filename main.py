@@ -173,15 +173,18 @@ def calculate_gains(txs):
 if __name__ == '__main__':
     parser = create_arg_parser()
     args = parser.parse_args()
-    print('Reading transactions...')
+
     transactions = import_transactions(args.transactions_file)
-    if args.old_lots_file:
-        print('Reading prior lots...')
-        old_lots = import_transactions(args.old_lots_file)
-        transactions = old_lots + transactions
     transactions.sort(key=lambda tx: tx.date)
+
     dividends = list(filter_dividends(transactions))
     dividends_total = calculate_dividends(dividends)
+
+    if args.old_lots_file:
+        old_lots = import_transactions(args.old_lots_file)
+        transactions = old_lots + transactions
+        transactions.sort(key=lambda tx: tx.date)
+    
     sales, lots = calculate_gains(transactions)
 
     print('Dividends: $%s' % dividends_total)
