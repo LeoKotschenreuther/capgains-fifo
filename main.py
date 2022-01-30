@@ -3,9 +3,12 @@ import csv
 from datetime import datetime
 from decimal import Decimal
 
-buy_verbs = ['Buy Investments', 'Auto-Rebalance Purchase']
-dividend_verbs = ['Reinvested Dividend']
-sale_verbs = ['Sell Investments', 'Auto-Rebalance Sale', 'Sale Of Recordkeeping Fee']
+buy_verbs = ['buy investments', 'auto-rebalance purchase', 'purchase due to fund exchange']
+dividend_verbs = ['reinvested dividend']
+sale_verbs = ['sell investments', 'auto-rebalance sale', 'sale of recordkeeping fee', 'sale due to fund exchange']
+
+DATE_FORMAT = '%Y-%m-%d'
+DATE_FORMAT_OLD = '%m/%d/%Y'
 
 
 class Transaction(object):
@@ -24,13 +27,13 @@ class Transaction(object):
                (self.date, self.amount, self.fund, self.units, self.type)
 
     def is_buy(self):
-        return self.type in buy_verbs
+        return self.type.lower() in buy_verbs
 
     def is_dividend(self):
-        return self.type in dividend_verbs
+        return self.type.lower() in dividend_verbs
 
     def is_sale(self):
-        return self.type in sale_verbs
+        return self.type.lower() in sale_verbs
 
     # splits of passed units, updates self to reflect the change and returns a new transaction
     def split_off(self, split_units):
@@ -70,6 +73,7 @@ class Sale(object):
 
 def create_arg_parser():
     p = argparse.ArgumentParser(description='Calculate Capital Gains')
+    p.add_argument('--old-lots-file')
     p.add_argument('transactions_file')
     p.add_argument('dividends_file')
     p.add_argument('sales_file')
@@ -80,25 +84,28 @@ def create_arg_parser():
 def import_transactions(filename):
     txs = []
     with open(filename) as f:
-        reader = csv.DictReader(f, delimiter='\t')
+        reader = csv.DictReader(f, delimiter=',')
         for tx in reader:
-            amount = tx['AMOUNT']
+            amount = tx['Amount']
             if amount[0] == '$':
                 amount = amount[1:]
-            date = datetime.strptime(tx['DATE'], '%m/%d/%Y')
-            txs.append(Transaction(date, amount, tx['FUND'], tx['UNITS'], tx['TYPE']))
+            try:
+                date = datetime.strptime(tx['Date'], DATE_FORMAT)
+            except ValueError:
+                date = datetime.strptime(tx['Date'], DATE_FORMAT_OLD)
+            txs.append(Transaction(date, amount, tx['Fund'], tx['Units'], tx['Type']))
     return txs
 
 
 def export_sales(filename, sales):
     with open(filename, 'w') as f:
-        writer = csv.writer(f, delimiter='\t')
-        writer.writerow(['DESCRIPTION', 'DATE ACQUIRED', 'DATE SOLD', 'PROCEEDS', 'COST', 'GAIN/LOSS'])
+        writer = csv.writer(f, delimiter=',')
+        writer.writerow(['Description', 'Date Acquired', 'Date Sold', 'Proceeds', 'Cost', 'Gain/Loss'])
         for sale in sales:
             writer.writerow([
                 sale.description,
-                sale.date_acquired.strftime('%m/%d/%Y'),
-                sale.date_sold.strftime('%m/%d/%Y'),
+                sale.date_acquired.strftime(DATE_FORMAT),
+                sale.date_sold.strftime(DATE_FORMAT),
                 sale.proceeds,
                 sale.cost,
                 sale.gain_loss
@@ -107,11 +114,11 @@ def export_sales(filename, sales):
 
 def export_transactions(filename, txs):
     with open(filename, 'w') as f:
-        writer = csv.writer(f, delimiter='\t')
-        writer.writerow(['DATE', 'AMOUNT', 'FUND', 'UNITS', 'TYPE'])
+        writer = csv.writer(f, delimiter=',')
+        writer.writerow(['Date', 'Amount', 'Fund', 'Units', 'Type'])
         for tx in txs:
             writer.writerow([
-                tx.date.strftime('%m/%d/%Y'),
+                tx.date.strftime(DATE_FORMAT),
                 tx.amount,
                 tx.fund,
                 tx.units,
@@ -166,7 +173,12 @@ def calculate_gains(txs):
 if __name__ == '__main__':
     parser = create_arg_parser()
     args = parser.parse_args()
+    print('Reading transactions...')
     transactions = import_transactions(args.transactions_file)
+    if args.old_lots_file:
+        print('Reading prior lots...')
+        old_lots = import_transactions(args.old_lots_file)
+        transactions = old_lots + transactions
     transactions.sort(key=lambda tx: tx.date)
     dividends = list(filter_dividends(transactions))
     dividends_total = calculate_dividends(dividends)
